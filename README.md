@@ -102,9 +102,15 @@ python extract.py "<链接>" -p 1 --probe-only     # 能出格式清单 = 通路
 python extract.py "<链接>" -p 1 --transcribe small  # 能出文本 = 转写正常
 ```
 
-完整交接说明（对方要什么环境、会踩哪些坑、版权边界）见 `docs/给别人用.md`。
+**如果接手的是 AI，不是人：**
 
-**如果接手的是对方的 AI**（不是人）：根目录的 `AGENTS.md` 就是给它读的说明书，主流编程 agent 会自动加载。三种接入方式（有命令行的 / 纯对话的 / MCP）见 `docs/给AI用.md`。关键是让 agent 加 `--json`，从返回的 `files` 字段判断成败，而不是看到"完成"就汇报。
+| 对方 AI | 给什么 |
+|---|---|
+| 能跑命令（Claude Code / Cursor / Cline） | 代码包本身。它会自动读 `AGENTS.md` 和 `START_HERE.md` |
+| 只能对话（网页版） | `dist/单文件版.md` 全文，它不需要仓库，只要内容 |
+| 支持 MCP | 自己包一层 server，把 `extract.py` 的四个步骤暴露成工具；返回里必须带绝对路径 |
+
+关键一条：让 agent 加 `--json`，从返回的 `files` 字段判断成败，而不是看到"完成"就汇报。
 
 > Windows 用户注意：`01/02` 是 bash 脚本，需要在 Git Bash 里跑；`extract.py` 本身跨平台。
 
@@ -127,18 +133,18 @@ python extract.py "<链接>" -p 1 --transcribe small  # 能出文本 = 转写正
 ```
 video-extract/
 ├── extract.py              入口：一条命令串起四步
+├── START_HERE.md           给 AI 的作业单（取料 + 五套模板 + 四条铁律）
+├── AGENTS.md               给 AI 的工具说明（agent 自动加载）
 ├── scripts/                四个可单独运行的脚本 + 说明
+├── dist/
+│   └── 单文件版.md            不依赖仓库，整段粘给网页版 AI
 ├── docs/
 │   ├── A_怎么读视频.md        每步的判断依据、参数、边界
-│   ├── B_怎么记笔记.md        下游：五套笔记模板（可选）
-│   ├── 新会话启动提示词.md     让 AI 接手时的开场话术
-│   ├── 发给AI_一份就够.md      单文件版，整段发给别的 AI
 │   └── 视频转笔记_可复用流程.html  流程图
 ├── outputs/                产出（按视频 ID 分目录）
 │   ├── P6_生态动物类/         笔记 7 版 + 源视频
 │   └── U5L4_公司词群/         笔记 2 版 + 两份转写稿 + 19 张板面页
-├── models/whisper/         small + large-v3，3.4GB，跨任务复用
-└── archive/                早期合并版文档（留档）
+└── models/whisper/         small + large-v3，3.4GB，跨任务复用
 ```
 
 `outputs/` 里那两个是**示例产物**，用来验证这条流水线真能跑通，不是工具的一部分。它们**不随仓库发布**（涉及第三方课程内容），clone 下来是空的，第一次运行会自动创建。
