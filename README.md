@@ -144,6 +144,8 @@ video-extract/
 ├── START_HERE.md           给 AI 的作业单（取料 + 五套模板 + 四条铁律）
 ├── AGENTS.md               给 AI 的工具说明（agent 自动加载）
 ├── scripts/                四个可单独运行的脚本 + 说明
+├── templates/
+│   └── 单词笔记模板.md        单词课默认模板（双轨六段）
 ├── dist/
 │   └── 单文件版.md            不依赖仓库，整段粘给网页版 AI
 ├── docs/
