@@ -19,16 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-适用范围说明 / Scope
-
-本许可覆盖仓库内的**代码与文档**。
-
-不包括：
-1. `outputs/` 目录——里面的笔记与截图来自第三方课程（刘晓艳 / 晓艳教英语），
-   版权归原作者，不作为本仓库的一部分分发。
-2. 任何由本工具抓取的视频、音频、字幕、画面内容。
-
-使用者需自行确保对抓取内容的使用符合当地法律与平台条款。
