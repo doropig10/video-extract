@@ -55,12 +55,148 @@ def video_id(url: str, p: str) -> str:
     return f"{m.group(1)}_p{p}" if m else "video"
 
 
+# ---------------------------------------------------------------- 环境体检
+
+PKGS = ["yt_dlp", "imageio_ffmpeg", "numpy", "PIL", "faster_whisper"]
+
+
+def candidate_pythons() -> list[str]:
+    """找出这台机器上可能装好依赖的所有解释器。"""
+    import shutil as _sh
+
+    cands = {sys.executable}
+    for name in ("python", "python3", "py"):
+        p = _sh.which(name)
+        if p:
+            cands.add(p)
+    home = os.path.expanduser("~")
+    patterns = [
+        os.path.join(home, ".workbuddy", "binaries", "python", "versions", "*", "python.exe"),
+        os.path.join(home, "anaconda3", "python.exe"),
+        os.path.join(home, "miniconda3", "python.exe"),
+        os.path.join(home, "AppData", "Local", "Programs", "Python", "Python*", "python.exe"),
+        r"C:\Python3*\python.exe",
+        "/usr/bin/python3",
+        "/usr/local/bin/python3",
+    ]
+    for pat in patterns:
+        cands.update(glob.glob(pat))
+
+    seen, out = set(), []
+    for p in cands:
+        try:
+            rp = os.path.realpath(p)
+        except OSError:
+            continue
+        if rp in seen or not os.path.isfile(rp):
+            continue
+        seen.add(rp)
+        out.append(rp)
+    return out
+
+
+def inspect_python(p: str) -> dict:
+    """探测一个解释器：版本 + 五个依赖是否可用。"""
+    import json
+    code = (
+        "import json,sys,importlib.util as u;"
+        "print(json.dumps({"
+        "'v':'.'.join(map(str,sys.version_info[:2])),"
+        "'pkg':{m:(u.find_spec(m) is not None) for m in json.loads(sys.argv[1])}"
+        "}))"
+    )
+    try:
+        r = subprocess.run([p, "-c", code, json.dumps(PKGS)],
+                           capture_output=True, text=True, timeout=20)
+        if r.returncode != 0:
+            err = (r.stderr or "").strip().splitlines()
+            return {"path": p, "ok": False, "err": err[-1:] or ["unknown"]}
+        d = json.loads(r.stdout.strip().splitlines()[-1])
+        d.update({"path": p, "ok": True})
+        return d
+    except Exception as e:
+        return {"path": p, "ok": False, "err": [type(e).__name__]}
+
+
+def doctor(as_json: bool = False) -> int:
+    import json
+
+    rows = [inspect_python(p) for p in candidate_pythons()]
+    rows.sort(key=lambda r: (not r.get("ok"), -sum(r.get("pkg", {}).values())))
+
+    ready = [r for r in rows if r.get("ok") and all(r["pkg"].values())]
+    partial = [r for r in rows if r.get("ok") and not all(r["pkg"].values())]
+
+    models = []
+    if os.path.isdir(MODELS):
+        for d in glob.glob(os.path.join(MODELS, "*faster-whisper-*")):
+            size = sum(os.path.getsize(os.path.join(dp, f))
+                       for dp, _, fs in os.walk(d) for f in fs)
+            models.append({"name": os.path.basename(d).split("--")[-1], "size_mb": round(size / 1048576)})
+
+    bash = None
+    for n in ("bash", "bash.exe"):
+        import shutil as _sh
+        bash = bash or _sh.which(n)
+
+    result = {
+        "pythons": rows,
+        "recommend": ready[0]["path"] if ready else (partial[0]["path"] if partial else None),
+        "missing_in_recommend": [k for k, v in (ready[0] if ready else partial[0] if partial else {"pkg": {}})["pkg"].items() if not v] if (ready or partial) else PKGS,
+        "models": models,
+        "bash": bash,
+    }
+
+    if as_json:
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+
+    print("== 解释器 ==")
+    for r in rows:
+        if not r.get("ok"):
+            print(f"  ✗ {r['path']}\n      无法运行：{r.get('err')}")
+            continue
+        mark = "★" if ready and r["path"] == ready[0]["path"] else " "
+        got = "".join("✓" if v else "✗" for v in r["pkg"].values())
+        names = " ".join(k for k, v in r["pkg"].items() if not v)
+        print(f" {mark} Python {r['v']}  {got}  {r['path']}")
+        if names:
+            print(f"      缺：{names}")
+
+    print("\n== 模型 ==")
+    if models:
+        for m in models:
+            print(f"  ✓ {m['name']}  {m['size_mb']} MB")
+    else:
+        print("  ✗ 无。首次转写会自动下载（small 464MB / large-v3 3GB）")
+
+    print("\n== bash ==")
+    print(f"  {'✓ ' + bash if bash else '✗ 无 —— 不影响，extract.py 已不依赖 bash'}")
+
+    print("\n== 结论 ==")
+    if ready:
+        print(f"  直接可用：{ready[0]['path']}")
+        if os.path.realpath(ready[0]["path"]) != os.path.realpath(sys.executable):
+            print(f"  用它跑：设置 VX_PYTHON={ready[0]['path']}")
+        print("  不需要安装任何东西。")
+    elif partial:
+        print(f"  最接近可用：{partial[0]['path']}")
+        print(f"  只缺：{', '.join(result['missing_in_recommend'])}")
+        print(f"  装这些即可：{partial[0]['path']} -m pip install {' '.join(result['missing_in_recommend'])}")
+        if "PIL" in result["missing_in_recommend"]:
+            print("  （PIL 对应包名是 pillow）")
+    else:
+        print("  没有可用的 Python。先装 Python 3.10+，再 pip install -r requirements.txt")
+    print("\n  下一步：python extract.py <链接> -p 1 --probe-only")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="从 B 站视频取音频、字幕、板书帧、转写文本",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("url")
+    ap.add_argument("url", nargs="?", help="视频链接；用 --doctor 时可省略")
     ap.add_argument("-p", "--part", default=None, help="分P号；合集视频必填")
     ap.add_argument("-o", "--out", default=None, help="输出目录（默认 outputs/<id>）")
     ap.add_argument("--probe-only", action="store_true", help="只打印格式与字幕，不下载")
@@ -73,7 +209,15 @@ def main() -> int:
     ap.add_argument("--per", type=int, default=3, help="拼页每页几张")
     ap.add_argument("--crop", type=int, default=1120, help="裁切宽度")
     ap.add_argument("--json", action="store_true", help="结束时输出 JSON（给 agent 解析）")
+    ap.add_argument("--doctor", action="store_true",
+                    help="环境体检：找本机已有的 Python/依赖/模型，不下载任何东西")
     args = ap.parse_args()
+
+    if args.doctor:
+        return doctor(args.json)
+
+    if not args.url:
+        ap.error("缺视频链接；只想体检请用 --doctor")
 
     if args.all:
         args.audio = args.video = args.frames = True

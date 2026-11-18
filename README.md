@@ -27,8 +27,11 @@
 
 ```bash
 cd video-extract
-python extract.py "<链接>" -p 23 --all
+python extract.py --doctor                      # 0 先体检：本机已有什么，缺什么
+python extract.py "<链接>" -p 23 --all            # 1 再干活
 ```
+
+`--doctor` 会列出本机所有可用的 Python、逐个检查依赖、报告已有模型，并直接告诉你**要不要装东西**。多数情况答案是「不用装」——别一上来就 `pip install`。
 
 产出在 `outputs/BVxxxx_p23/`：
 
