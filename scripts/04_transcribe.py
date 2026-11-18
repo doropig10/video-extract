@@ -39,6 +39,24 @@ def setup_dll_dirs() -> None:
             os.environ["PATH"] = d + os.pathsep + os.environ["PATH"]
 
 
+def resolve_model(name: str, models_dir: str) -> str:
+    """把模型名解析成本地目录，避免已有模型还去联网下载。
+
+    支持两种布局：
+      1) 普通目录          models/whisper/medium/model.bin
+      2) HF 缓存布局        models/whisper/models--Systran--faster-whisper-small/snapshots/<hash>/model.bin
+    """
+    cand = os.path.join(models_dir, name)
+    if os.path.isfile(os.path.join(cand, "model.bin")):
+        return cand
+    import glob
+    hf = os.path.join(models_dir, f"models--Systran--faster-whisper-{name}")
+    for snap in glob.glob(os.path.join(hf, "snapshots", "*")):
+        if os.path.isfile(os.path.join(snap, "model.bin")):
+            return snap
+    return name
+
+
 def read_wav(path: str) -> np.ndarray:
     w = wave.open(path)
     if w.getnchannels() != 1 or w.getframerate() != 16000:
@@ -66,8 +84,13 @@ def main() -> None:
     dur = len(audio) / 16000
     print(f"音频 {dur/60:.1f} min", flush=True)
 
-    models_dir = args.models_dir or os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), "models", "whisper")
+    models_dir = (args.models_dir
+                  or os.environ.get("VX_MODELS")
+                  or os.path.join(os.path.dirname(os.path.dirname(
+                      os.path.abspath(__file__))), "models", "whisper"))
+    model_ref = resolve_model(args.model, models_dir)
+    if model_ref != args.model:
+        print(f"用本地模型：{model_ref}", flush=True)
 
     attempts = []
     if args.device in ("auto", "cuda"):
@@ -78,7 +101,7 @@ def main() -> None:
     for dev, ct in attempts:
         try:
             t0 = time.time()
-            model = WhisperModel(args.model, device=dev, compute_type=ct,
+            model = WhisperModel(model_ref, device=dev, compute_type=ct,
                                  download_root=models_dir)
             print(f"{dev}/{ct} 就绪 {time.time()-t0:.0f}s", flush=True)
             break
