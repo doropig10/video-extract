@@ -20,6 +20,7 @@ import glob
 import os
 import shutil
 import subprocess
+import time
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -276,37 +277,46 @@ def main() -> int:
     audio = next(iter(glob.glob(os.path.join(out, "*.m4a"))), None)
     video = next(iter(glob.glob(os.path.join(out, "src_*.mp4"))), None)
 
-    # 3 转写（先转 16k wav，绕开 av 库不兼容）
-    if args.transcribe:
+    # 3/4/5 转写 与 抽帧+OCR 互不依赖，并行跑
+    def do_transcribe() -> None:
+        if not args.transcribe:
+            return
         if not audio:
             print("找不到音轨，跳过转写（先加 --audio）", file=sys.stderr)
-        else:
-            wav = os.path.join(out, "a16k.wav")
-            if not os.path.exists(wav):
-                sh([ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
-                    "-i", audio, "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", wav])
-            sh([PY, os.path.join(SCRIPTS, "04_transcribe.py"),
-                wav, os.path.join(out, "transcript.txt"),
-                "--model", args.transcribe, "--models-dir", MODELS])
+            return
+        wav = os.path.join(out, "a16k.wav")
+        if not os.path.exists(wav):
+            sh([ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
+                "-i", audio, "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", wav])
+        sh([PY, os.path.join(SCRIPTS, "04_transcribe.py"),
+            wav, os.path.join(out, "transcript.txt"),
+            "--model", args.transcribe, "--models-dir", MODELS])
 
-    # 4 抽帧
-    if args.frames:
-        if not video:
-            print("找不到视频流，跳过抽帧（先加 --video）", file=sys.stderr)
-        else:
-            sh([PY, os.path.join(SCRIPTS, "03_pick_frames.py"),
-                video, os.path.join(out, "frames"),
-                "--crop", str(args.crop), "--per", str(args.per),
-                "--strip"])
+    def do_frames_ocr() -> None:
+        if args.frames:
+            if not video:
+                print("找不到视频流，跳过抽帧（先加 --video）", file=sys.stderr)
+            else:
+                sh([PY, os.path.join(SCRIPTS, "03_pick_frames.py"),
+                    video, os.path.join(out, "frames"),
+                    "--crop", str(args.crop), "--per", str(args.per),
+                    "--strip"])
+        if args.ocr:
+            fdir = os.path.join(out, "frames")
+            if not os.path.isdir(fdir):
+                print("没有 frames/，跳过 OCR（先加 --frames）", file=sys.stderr)
+            else:
+                sh([PY, os.path.join(SCRIPTS, "05_ocr.py"),
+                    fdir, os.path.join(out, "board_ocr.txt")])
 
-    # 5 OCR：整页转文字，省去逐页看图
-    if args.ocr:
-        fdir = os.path.join(out, "frames")
-        if not os.path.isdir(fdir):
-            print("没有 frames/，跳过 OCR（先加 --frames）", file=sys.stderr)
-        else:
-            sh([PY, os.path.join(SCRIPTS, "05_ocr.py"),
-                fdir, os.path.join(out, "board_ocr.txt")])
+    if args.transcribe or args.frames or args.ocr:
+        from concurrent.futures import ThreadPoolExecutor
+        t0 = time.time()
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            futs = [ex.submit(do_transcribe), ex.submit(do_frames_ocr)]
+            for f in futs:
+                f.result()
+        print(f"\n转写与抽帧并行完成，耗时 {time.time()-t0:.0f}s")
 
     print(f"\n完成 → {out}")
     produced = {}
