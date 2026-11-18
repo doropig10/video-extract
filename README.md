@@ -112,7 +112,9 @@ python extract.py "<链接>" -p 1 --transcribe small  # 能出文本 = 转写正
 
 关键一条：让 agent 加 `--json`，从返回的 `files` 字段判断成败，而不是看到"完成"就汇报。
 
-> Windows 用户注意：`01/02` 是 bash 脚本，需要在 Git Bash 里跑；`extract.py` 本身跨平台。
+> `extract.py` **不依赖 bash**，探测与下载都走 `python -m yt_dlp`，Windows 默认终端即可。`scripts/*.sh` 只是给习惯命令行的人准备的等价实现，用不用都行。
+>
+> 如果对方环境里有多个 Python（例如 AI 沙箱自带的那个缺依赖），用环境变量 `VX_PYTHON` 指到装好依赖的解释器，即可跳过重复安装。
 
 ---
 

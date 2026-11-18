@@ -21,7 +21,8 @@
 ### A1 · 装环境（只做一次）
 
 ```bash
-./install.sh          # Windows 需在 Git Bash 里执行
+./install.sh                                  # macOS / Linux / Git Bash
+python -m pip install -r requirements.txt     # Windows 默认终端用这条
 ```
 
 看到自检四行都是 `ok` 就往下走；缺哪个补哪个，不要跳过。

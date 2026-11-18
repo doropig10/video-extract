@@ -51,6 +51,8 @@ python extract.py "<视频链接>" -p <分P号> --all --json
 | 症状 | 动作 |
 |---|---|
 | `yt-dlp: command not found` | 用 `python -m yt_dlp`，不要重装 |
+| 沙箱 Python 缺依赖 | 设 `VX_PYTHON=<已装好依赖的解释器路径>`，跳过重复安装 |
+| 报 `bash: command not found` | 已不需要 bash；改调 `extract.py`，别调 `scripts/*.sh` |
 | 转写 900 秒超时 | 走本地 `--transcribe`（本项目就是本地实现），不要再试平台服务 |
 | `cublas64_12.dll is not found` | GPU 库没装或没加 DLL 目录；直接退 CPU：`--transcribe small` 会自动降级 |
 | 模型下载 502 | `export HF_ENDPOINT=https://hf-mirror.com` |

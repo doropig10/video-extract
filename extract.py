@@ -26,10 +26,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "scripts")
 MODELS = os.path.join(HERE, "models", "whisper")
 
+# 允许指定解释器：沙箱里的 AI 常常自带一个缺依赖的 Python，
+# 用 VX_PYTHON 指到系统已装好的那一个，可跳过重复安装。
+PY = os.environ.get("VX_PYTHON") or sys.executable
+
 
 def sh(cmd: list[str], **kw) -> int:
     print("$", " ".join(cmd), flush=True)
     return subprocess.run(cmd, **kw).returncode
+
+
+def ytdlp(*args: str) -> int:
+    """直接用 yt-dlp 模块，不经过 bash 脚本（沙箱里常常没有 bash）。"""
+    return sh([PY, "-m", "yt_dlp", "--no-warnings", *args])
 
 
 def ffmpeg() -> str:
@@ -82,20 +91,28 @@ def main() -> int:
             print(json.dumps({"ok": ok, "video_id": vid, "dir": out,
                               "files": files}, ensure_ascii=False))
 
-    # 1 探测（总是先跑，信息印出来）
-    cmd = ["bash", os.path.join(SCRIPTS, "01_probe.sh"), args.url]
-    if args.part:
-        cmd.append(args.part)
-    sh(cmd)
+    # 1 探测（纯 Python，不依赖 bash）
+    ytdlp("-I", args.part or "1", "-F", args.url)
+    print("\n=== 字幕轨（只显示 danmaku 就是没字幕）===", flush=True)
+    ytdlp("--list-subs", args.url)
+    print("\n=== 元信息 ===", flush=True)
+    ytdlp("-I", args.part or "1", "--skip-download",
+          "--print", "%(title)s | %(duration)s s | %(uploader)s", args.url)
     if args.probe_only:
         emit({})
         return 0
 
-    # 2 取流
-    if args.audio or args.video:
-        dl = ["bash", os.path.join(SCRIPTS, "02_download.sh"), args.url, args.part or "1", out]
-        if sh(dl) != 0:
-            print("取流失败；若已有 audio.m4a / src.mp4 可继续后续步骤", file=sys.stderr)
+    # 2 取流（直接用 yt-dlp，不依赖 bash）
+    if args.audio:
+        sub = ["-I", args.part or "1", "-f", "ba",
+               "-o", os.path.join(out, "%(id)s.%(ext)s"), args.url]
+        if ytdlp(*sub) != 0:
+            print("音频下载失败；若已有 *.m4a 可继续后续步骤", file=sys.stderr)
+    if args.video:
+        sub = ["-I", args.part or "1", "-f", "30064",
+               "-o", os.path.join(out, "src_%(id)s.%(ext)s"), args.url]
+        if ytdlp(*sub) != 0:
+            print("视频下载失败；若已有 src_*.mp4 可继续后续步骤", file=sys.stderr)
 
     audio = next(iter(glob.glob(os.path.join(out, "*.m4a"))), None)
     video = next(iter(glob.glob(os.path.join(out, "src_*.mp4"))), None)
@@ -109,7 +126,7 @@ def main() -> int:
             if not os.path.exists(wav):
                 sh([ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
                     "-i", audio, "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", wav])
-            sh([sys.executable, os.path.join(SCRIPTS, "04_transcribe.py"),
+            sh([PY, os.path.join(SCRIPTS, "04_transcribe.py"),
                 wav, os.path.join(out, "transcript.txt"),
                 "--model", args.transcribe, "--models-dir", MODELS])
 
@@ -118,7 +135,7 @@ def main() -> int:
         if not video:
             print("找不到视频流，跳过抽帧（先加 --video）", file=sys.stderr)
         else:
-            sh([sys.executable, os.path.join(SCRIPTS, "03_pick_frames.py"),
+            sh([PY, os.path.join(SCRIPTS, "03_pick_frames.py"),
                 video, os.path.join(out, "frames"),
                 "--crop", str(args.crop), "--per", str(args.per)])
 
