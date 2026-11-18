@@ -61,6 +61,34 @@ def pick(files: list[str], roi: tuple[int, int, int, int], win: int = 5,
     return picks
 
 
+def build_strip(ts: list[int], wide_dir: str, out_path: str,
+                top: int = 56, bottom: int = 150, cols: int = 4) -> None:
+    """把每帧的标题行（单词+音标）横切出来拼成一张长图。
+
+    用途：先一眼扫完整课词表，再回头细读需要的词条，
+    避免逐页读整块板造成的重复劳动。
+    """
+    tiles = []
+    for t in ts:
+        p = os.path.join(wide_dir, f"w_{t}.jpg")
+        if not os.path.exists(p):
+            continue
+        im = Image.open(p).crop((0, top, 1120, bottom))
+        tiles.append((t, im))
+    if not tiles:
+        return
+    w, h = tiles[0][1].size
+    label = 70
+    rows = (len(tiles) + cols - 1) // cols
+    out = Image.new("RGB", (cols * w, rows * (h + label)), "white")
+    d = ImageDraw.Draw(out)
+    for i, (t, im) in enumerate(tiles):
+        x, y = (i % cols) * w, (i // cols) * (h + label)
+        d.text((6, y + 4), f"{t//60:02d}:{t%60:02d}", fill="black")
+        out.paste(im, (x, y + 18))
+    out.save(out_path, quality=90)
+
+
 def export(src: str, files: list[str], picks: list[int], outdir: str,
            crop_w: int, per: int, every: int) -> int:
     wide = os.path.join(outdir, "wide")
@@ -95,7 +123,7 @@ def export(src: str, files: list[str], picks: list[int], outdir: str,
             y += h + bar
         pages += 1
         out.save(os.path.join(outdir, f"p_{pages:02d}.jpg"), quality=90)
-    return pages
+    return pages, ts
 
 
 def main() -> None:
@@ -107,13 +135,19 @@ def main() -> None:
     ap.add_argument("--per", type=int, default=3, help="每页拼几张")
     ap.add_argument("--roi", default="20,52,336,190", help="480x270 上的文字区 x1,y1,x2,y2")
     ap.add_argument("--dedup", type=float, default=5.0)
+    ap.add_argument("--strip", action="store_true",
+                    help="额外生成标题条：每帧只切顶部词条行，一次看完全课词表")
     args = ap.parse_args()
 
     roi = tuple(int(v) for v in args.roi.split(","))
     files = sample_frames(args.src, args.outdir, args.every)
     picks = pick(files, roi, dedup=args.dedup)
     print(f"抽样 {len(files)} 帧 → 候选版面 {len(picks)}")
-    pages = export(args.src, files, picks, args.outdir, args.crop, args.per, args.every)
+    pages, ts = export(args.src, files, picks, args.outdir, args.crop, args.per, args.every)
+    if args.strip:
+        strip_path = os.path.join(args.outdir, "strip.jpg")
+        build_strip(ts, os.path.join(args.outdir, "wide"), strip_path)
+        print(f"标题条：{strip_path}")
     print(f"导出 {pages} 页，在 {os.path.join(args.outdir)}")
     print("提示：手写动画场景下会有重复页，拼页后人工合并即可。")
 
