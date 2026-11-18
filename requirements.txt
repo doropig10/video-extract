@@ -4,6 +4,7 @@ imageio-ffmpeg>=0.4
 numpy>=1.24
 pillow>=10
 faster-whisper>=1.0
+rapidocr-onnxruntime>=1.2   # OCR：把板面整页转文字
 
 # 可选：用 GPU 转写时才装（约 1.2GB）
 # nvidia-cublas-cu12

@@ -219,6 +219,8 @@ def main() -> int:
     ap.add_argument("--per", type=int, default=3, help="拼页每页几张")
     ap.add_argument("--crop", type=int, default=1120, help="裁切宽度")
     ap.add_argument("--json", action="store_true", help="结束时输出 JSON（给 agent 解析）")
+    ap.add_argument("--ocr", action="store_true",
+                    help="抽帧后对整页做 OCR，输出 board_ocr.txt（不读图也能拿到文字）")
     ap.add_argument("--doctor", action="store_true",
                     help="环境体检：找本机已有的 Python/依赖/模型，不下载任何东西")
     args = ap.parse_args()
@@ -230,7 +232,7 @@ def main() -> int:
         ap.error("缺视频链接；只想体检请用 --doctor")
 
     if args.all:
-        args.audio = args.video = args.frames = True
+        args.audio = args.video = args.frames = args.ocr = True
         args.transcribe = args.transcribe or "large-v3"
     if not any([args.probe_only, args.audio, args.video, args.frames, args.transcribe]):
         ap.error("至少选一个动作：--probe-only / --audio / --video / --frames / --transcribe / --all")
@@ -291,7 +293,17 @@ def main() -> int:
         else:
             sh([PY, os.path.join(SCRIPTS, "03_pick_frames.py"),
                 video, os.path.join(out, "frames"),
-                "--crop", str(args.crop), "--per", str(args.per)])
+                "--crop", str(args.crop), "--per", str(args.per),
+                "--strip"])
+
+    # 5 OCR：整页转文字，省去逐页看图
+    if args.ocr:
+        fdir = os.path.join(out, "frames")
+        if not os.path.isdir(fdir):
+            print("没有 frames/，跳过 OCR（先加 --frames）", file=sys.stderr)
+        else:
+            sh([PY, os.path.join(SCRIPTS, "05_ocr.py"),
+                fdir, os.path.join(out, "board_ocr.txt")])
 
     print(f"\n完成 → {out}")
     produced = {}
