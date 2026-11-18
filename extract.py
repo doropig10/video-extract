@@ -24,7 +24,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "scripts")
-MODELS = os.path.join(HERE, "models", "whisper")
+# 模型目录可用 VX_MODELS 指向别处，复用其他项目已下好的模型
+MODELS = os.environ.get("VX_MODELS") or os.path.join(HERE, "models", "whisper")
 
 # 允许指定解释器：沙箱里的 AI 常常自带一个缺依赖的 Python，
 # 用 VX_PYTHON 指到系统已装好的那一个，可跳过重复安装。
@@ -75,6 +76,7 @@ def candidate_pythons() -> list[str]:
         os.path.join(home, "anaconda3", "python.exe"),
         os.path.join(home, "miniconda3", "python.exe"),
         os.path.join(home, "AppData", "Local", "Programs", "Python", "Python*", "python.exe"),
+        os.path.join(home, ".dsh", "dsh-runtimes", "*", "dependencies", "python", "python.exe"),
         r"C:\Python3*\python.exe",
         "/usr/bin/python3",
         "/usr/local/bin/python3",
@@ -129,10 +131,18 @@ def doctor(as_json: bool = False) -> int:
 
     models = []
     if os.path.isdir(MODELS):
-        for d in glob.glob(os.path.join(MODELS, "*faster-whisper-*")):
+        for d in sorted(glob.glob(os.path.join(MODELS, "*"))):
+            if not os.path.isdir(d):
+                continue
             size = sum(os.path.getsize(os.path.join(dp, f))
                        for dp, _, fs in os.walk(d) for f in fs)
-            models.append({"name": os.path.basename(d).split("--")[-1], "size_mb": round(size / 1048576)})
+            has_bin = any(f == "model.bin" for _, _, fs in os.walk(d) for f in fs)
+            if not has_bin:
+                continue
+            name = os.path.basename(d)
+            if name.startswith("models--"):
+                name = name.split("--")[-1]
+            models.append({"name": name, "size_mb": round(size / 1048576)})
 
     bash = None
     for n in ("bash", "bash.exe"):
