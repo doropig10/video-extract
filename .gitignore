@@ -1,0 +1,17 @@
+# 模型与素材不进版本库（3.4GB / 109MB）
+models/
+outputs/
+
+# 取料产物
+*.m4a
+*.wav
+*.mp4
+*.flv
+frames/
+
+# 运行时杂物
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+Thumbs.db
