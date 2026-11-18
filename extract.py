@@ -209,6 +209,8 @@ def main() -> int:
     ap.add_argument("url", nargs="?", help="视频链接；用 --doctor 时可省略")
     ap.add_argument("-p", "--part", default=None, help="分P号；合集视频必填")
     ap.add_argument("-o", "--out", default=None, help="输出目录（默认 outputs/<id>）")
+    ap.add_argument("-n", "--name", default=None,
+                    help="输出目录名，建议用课程单元名，如 U6L2-1_官人与计算")
     ap.add_argument("--probe-only", action="store_true", help="只打印格式与字幕，不下载")
     ap.add_argument("--audio", action="store_true", help="下载音轨")
     ap.add_argument("--video", action="store_true", help="下载 720P 视频流")
@@ -238,14 +240,15 @@ def main() -> int:
         ap.error("至少选一个动作：--probe-only / --audio / --video / --frames / --transcribe / --all")
 
     vid = video_id(args.url, args.part or "1")
-    out = os.path.abspath(args.out or os.path.join(HERE, "outputs", vid))
+    dirname = args.name or vid
+    out = os.path.abspath(args.out or os.path.join(HERE, "outputs", dirname))
     os.makedirs(out, exist_ok=True)
 
     def emit(files: dict, ok: bool = True) -> None:
         if args.json:
             import json
-            print(json.dumps({"ok": ok, "video_id": vid, "dir": out,
-                              "files": files}, ensure_ascii=False))
+            print(json.dumps({"ok": ok, "video_id": vid, "name": dirname,
+                              "dir": out, "files": files}, ensure_ascii=False))
 
     # 1 探测（纯 Python，不依赖 bash）
     ytdlp("-I", args.part or "1", "-F", args.url)

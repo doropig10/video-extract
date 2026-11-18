@@ -27,9 +27,12 @@
 
 ```bash
 cd video-extract
-python extract.py --doctor                      # 0 先体检：本机已有什么，缺什么
-python extract.py "<链接>" -p 23 --all            # 1 再干活
+python extract.py --doctor                         # 0 先体检：本机已有什么，缺什么
+python extract.py "<链接>" -p 23 -n U5L4_公司词群 --all   # 1 再干活
 ```
+
+**目录名别用 BV 号**，用课程单元名：`U6L2-1_官人与计算` 比 `BV1KRrKBNEZZ_p26` 好找一百倍。
+不传 `-n` 时退回 BV 号，只适合一次性实验。
 
 `--doctor` 会列出本机所有可用的 Python、逐个检查依赖、报告已有模型，并直接告诉你**要不要装东西**。多数情况答案是「不用装」——别一上来就 `pip install`。
 

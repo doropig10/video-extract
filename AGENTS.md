@@ -31,7 +31,8 @@ python extract.py "<视频链接>" -p <分P号> --all --json
 | `--transcribe [MODEL]` | 转写，默认 large-v3 | 可省参数，如 `--transcribe` |
 | `--all` | 上面四个全做 | |
 | `--json` | 输出 JSON | agent 必加 |
-| `-o, --out` | 自定义输出目录 | 默认 `outputs/<id>` |
+| `-n, --name` | 输出目录名 | **用课程单元名**，如 `U6L2-1_官人与计算`；别用 BV 号 |
+| `-o, --out` | 自定义完整输出路径 | 一般不用，`-n` 够 |
 
 ## 产出
 
